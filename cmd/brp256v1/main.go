@@ -27,7 +27,7 @@ import (
 )
 
 var (
-	bit    = flag.Int("bits", 64, "Shared secret bit-length.")
+	bit    = flag.Int("bits", 128, "Shared secret bit-length.")
 	dec    = flag.Bool("decrypt", false, "Decrypt with Privatekey.")
 	derive = flag.Bool("derive", false, "Derive shared secret.")
 	enc    = flag.Bool("encrypt", false, "Encrypt with Publickey.")
