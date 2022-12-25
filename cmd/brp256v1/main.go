@@ -16,13 +16,14 @@ import (
 	"flag"
 	"fmt"
 	"golang.org/x/crypto/sha3"
+	"hash"
 	"io"
 	"log"
 	"math/big"
 	"os"
 
-	"github.com/pedroalbanese/randomart"
 	"github.com/pedroalbanese/brp256v1"
+	"github.com/pedroalbanese/randomart"
 )
 
 var (
@@ -33,26 +34,30 @@ var (
 	key    = flag.String("key", "", "Private/Public key depending on operation.")
 	keygen = flag.Bool("keygen", false, "Generate keypair.")
 	public = flag.String("pub", "", "Remote's side Public key. (for ECDH)")
+	sig    = flag.String("signature", "", "Signature.")
+	sign   = flag.Bool("sign", false, "Sign with Private key.")
+	verify = flag.Bool("verify", false, "Verify with Public key.")
 )
 
 func main() {
 	flag.Parse()
 
-	if (len(os.Args) < 2) {
-		fmt.Fprintln(os.Stderr,"SETH Cryptosystem (c) 2020-2023 - ALBANESE Research Lab")
-		fmt.Fprintln(os.Stderr,"256-bit prime field Weierstrass y^2=x^3+ax+b ECDHE Tool\n")
-		fmt.Fprintln(os.Stderr,"Usage of",os.Args[0]+":")
+	if len(os.Args) < 2 {
+		fmt.Fprintln(os.Stderr, "SETH Cryptosystem (c) 2020-2023 - ALBANESE Research Lab")
+		fmt.Fprintln(os.Stderr, "256-bit prime field Weierstrass y^2=x^3+ax+b ECDHE Tool\n")
+		fmt.Fprintln(os.Stderr, "Usage of", os.Args[0]+":")
 		flag.PrintDefaults()
 		os.Exit(1)
-	} 
+	}
 
 	var privatekey *ecdsa.PrivateKey
 	var pubkey ecdsa.PublicKey
+	var pub *ecdsa.PublicKey
 	var err error
 	var pubkeyCurve elliptic.Curve
 
 	pubkeyCurve = brp.P256()
-	
+
 	if *keygen {
 		if *key != "" {
 			privatekey, err = ReadPrivateKeyFromHex(*key)
@@ -113,7 +118,6 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-//		fmt.Printf("%x\n", ciphertxt)
 		fmt.Printf("%s", ciphertxt)
 		os.Exit(0)
 	}
@@ -127,7 +131,6 @@ func main() {
 		data := os.Stdin
 		io.Copy(buf, data)
 		scanner := string(buf.Bytes())
-//		str, _ := hex.DecodeString(string(scanner))
 		str := string(scanner)
 		plaintxt, err := DecryptAsn1(private, []byte(str))
 		if err != nil {
@@ -137,7 +140,82 @@ func main() {
 		os.Exit(0)
 	}
 
+	if *sign {
+		var h hash.Hash
+		h = sha3.NewLegacyKeccak256()
+
+		if _, err := io.Copy(h, os.Stdin); err != nil {
+			panic(err)
+		}
+
+		privatekey, err = ReadPrivateKeyFromHex(*key)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		signature, err := Sign(h.Sum(nil), privatekey)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("%x\n", signature)
+		os.Exit(0)
+	}
+
+	if *verify {
+		var h hash.Hash
+		h = sha3.NewLegacyKeccak256()
+
+		if _, err := io.Copy(h, os.Stdin); err != nil {
+			panic(err)
+		}
+
+		pub, err = ReadPublicKeyFromHex(*key)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		sig, _ := hex.DecodeString(*sig)
+
+		verifystatus := Verify(h.Sum(nil), sig, pub)
+		fmt.Println(verifystatus)
+		if verifystatus {
+			os.Exit(0)
+		} else {
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 	fmt.Println(randomart.FromString(*key))
+}
+
+func Sign(data []byte, privkey *ecdsa.PrivateKey) ([]byte, error) {
+	digest := sha3.Sum256(data)
+
+	r, s, err := ecdsa.Sign(rand.Reader, privkey, digest[:])
+	if err != nil {
+		return nil, err
+	}
+
+	params := privkey.Curve.Params()
+	curveOrderByteSize := params.P.BitLen() / 8
+	rBytes, sBytes := r.Bytes(), s.Bytes()
+	signature := make([]byte, curveOrderByteSize*2)
+	copy(signature[curveOrderByteSize-len(rBytes):], rBytes)
+	copy(signature[curveOrderByteSize*2-len(sBytes):], sBytes)
+
+	return signature, nil
+}
+
+func Verify(data, signature []byte, pubkey *ecdsa.PublicKey) bool {
+	digest := sha3.Sum256(data)
+
+	curveOrderByteSize := pubkey.Curve.Params().P.BitLen() / 8
+
+	r, s := new(big.Int), new(big.Int)
+	r.SetBytes(signature[:curveOrderByteSize])
+	s.SetBytes(signature[curveOrderByteSize:])
+
+	return ecdsa.Verify(pubkey, digest[:], r, s)
 }
 
 func ReadPrivateKeyFromHex(Dhex string) (*ecdsa.PrivateKey, error) {
@@ -407,7 +485,6 @@ func Decrypt(priv *PrivateKey, data []byte, mode int) ([]byte, error) {
 		c1 := make([]byte, 64)
 		c2 := make([]byte, len(data)-96)
 		c3 := make([]byte, 32)
-		copy(c1, data[:64]) //x1,y1
 		copy(c2, data[64:len(data)-32])
 		copy(c3, data[len(data)-32:])
 		c := []byte{}
@@ -459,7 +536,6 @@ func Decrypt(priv *PrivateKey, data []byte, mode int) ([]byte, error) {
 
 func randFieldElement(c elliptic.Curve, random io.Reader) (k *big.Int, err error) {
 	if random == nil {
-		random = rand.Reader //If there is no external trusted random source,please use rand.Reader to instead of it.
 	}
 	params := c.Params()
 	b := make([]byte, params.BitSize/8+8)
