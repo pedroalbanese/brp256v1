@@ -9,4 +9,4 @@ Parameters for the BRP256v1 Elliptic curve
 
 This project is licensed under the ISC License.
 
-##### Industrial-Grade Reliability. Copyright (c) 2020-2022 ALBANESE Research Lab.
+##### Industrial-Grade Reliability. Copyright (c) 2020-2023 ALBANESE Research Lab.
