@@ -1,4 +1,4 @@
-package main
+package brp256v1
 
 import (
 	"crypto/elliptic"
