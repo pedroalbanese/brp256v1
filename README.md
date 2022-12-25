@@ -5,6 +5,9 @@
 
 Parameters for the BRP256v1 Elliptic curve
 
+### TODO
+- [ ] 512-bit
+
 ## License
 
 This project is licensed under the ISC License.
