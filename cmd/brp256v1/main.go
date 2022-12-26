@@ -21,6 +21,7 @@ import (
 	"log"
 	"math/big"
 	"os"
+	"strings"
 
 	"github.com/pedroalbanese/brp256v1"
 	"github.com/pedroalbanese/randomart"
@@ -185,7 +186,55 @@ func main() {
 		}
 		os.Exit(0)
 	}
-	fmt.Println(randomart.FromString(*key))
+
+	if *public != "" {
+		pub, err = ReadPublicKeyFromHex(*public)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println("Public Key:")
+		fmt.Printf("X: %X\n", pub.X)
+		fmt.Printf("Y: %X\n", pub.Y)
+		print(" ", len(WritePublicKeyToHex(pub))/2, " bytes ", len(WritePublicKeyToHex(pub))*4, " bits\n")
+		splitz := SplitSubN(WritePublicKeyToHex(pub), 2)
+		for _, chunk := range split(strings.Trim(fmt.Sprint(splitz), "[]"), 60) {
+			fmt.Printf("  %-10s  \n", strings.ToUpper(chunk))
+		}
+		fmt.Println(randomart.FromString(*public))
+		if validateECPublicKey(pubkeyCurve, pub.X, pub.Y) {
+			os.Exit(0)
+		} else {
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+
+	if *key != "" {
+		privatekey, _ = ReadPrivateKeyFromHex(*key)
+		pubkey = privatekey.PublicKey
+		fmt.Println("Private Key:")
+
+		fmt.Printf("D: %X\n", privatekey.D)
+		print(" ", len(WritePrivateKeyToHex(privatekey))/2, " bytes ", len(WritePrivateKeyToHex(privatekey))*4, " bits\n")
+		splitx := SplitSubN(WritePrivateKeyToHex(privatekey), 2)
+		for _, chunk := range split(strings.Trim(fmt.Sprint(splitx), "[]"), 60) {
+			fmt.Printf("  %-10s  \n", strings.ToUpper(chunk))
+		}
+
+		fmt.Println("Public Key:")
+		fmt.Printf("X: %X\n", pubkey.X)
+		fmt.Printf("Y: %X\n", pubkey.Y)
+		print(" ", len(WritePublicKeyToHex(&pubkey))/2, " bytes ", len(WritePublicKeyToHex(&pubkey))*4, " bits\n")
+		splitz := SplitSubN(WritePublicKeyToHex(&pubkey), 2)
+		for _, chunk := range split(strings.Trim(fmt.Sprint(splitz), "[]"), 60) {
+			fmt.Printf("  %-10s  \n", strings.ToUpper(chunk))
+		}
+		if validateECPublicKey(pubkeyCurve, pubkey.X, pubkey.Y) {
+			os.Exit(0)
+		} else {
+			os.Exit(1)
+		}
+	}
 }
 
 func Sign(data []byte, privkey *ecdsa.PrivateKey) ([]byte, error) {
@@ -216,6 +265,53 @@ func Verify(data, signature []byte, pubkey *ecdsa.PublicKey) bool {
 	s.SetBytes(signature[curveOrderByteSize:])
 
 	return ecdsa.Verify(pubkey, digest[:], r, s)
+}
+
+func split(s string, size int) []string {
+	ss := make([]string, 0, len(s)/size+1)
+	for len(s) > 0 {
+		if len(s) < size {
+			size = len(s)
+		}
+		ss, s = append(ss, s[:size]), s[size:]
+
+	}
+	return ss
+}
+
+func SplitSubN(s string, n int) []string {
+	sub := ""
+	subs := []string{}
+
+	runes := bytes.Runes([]byte(s))
+	l := len(runes)
+	for i, r := range runes {
+		sub = sub + string(r)
+		if (i+1)%n == 0 {
+			subs = append(subs, sub)
+			sub = ""
+		} else if (i + 1) == l {
+			subs = append(subs, sub)
+		}
+	}
+
+	return subs
+}
+
+func validateECPublicKey(curve elliptic.Curve, x, y *big.Int) bool {
+	if x.Sign() == 0 && y.Sign() == 0 {
+		return false
+	}
+	if x.Cmp(curve.Params().P) >= 0 {
+		return false
+	}
+	if y.Cmp(curve.Params().P) >= 0 {
+		return false
+	}
+	if !curve.IsOnCurve(x, y) {
+		return false
+	}
+	return true
 }
 
 func ReadPrivateKeyFromHex(Dhex string) (*ecdsa.PrivateKey, error) {
