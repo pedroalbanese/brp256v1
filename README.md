@@ -5,30 +5,6 @@
 
 Parameters for the BRP256v1 Elliptic curve
 
-### Usage
-```
-Usage of brp256v1:
-  -bits int
-        Shared secret bit-length. (default 128)
-  -decrypt
-        Decrypt with Privatekey.
-  -derive
-        Derive shared secret.
-  -encrypt
-        Encrypt with Publickey.
-  -key string
-        Private/Public key depending on operation.
-  -keygen
-        Generate keypair.
-  -pub string
-        Remote's side Public key. (for ECDH)
-  -sign
-        Sign with Private key.
-  -signature string
-        Signature.
-  -verify
-        Verify with Public key.
-```
 ### TODO
 - [ ] 512-bit
 
